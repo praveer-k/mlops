@@ -3,7 +3,7 @@
 # How to run
 ```bash
   # brew install uv
-  uv run
+  uv sync
   docker compose up -d
   code .
   # open ipynb
