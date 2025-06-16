@@ -1,15 +1,22 @@
 import os
 import logging
 from datetime import datetime
+from typing import Dict, List
 
-import numpy as np
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Response
+from mlflow import MlflowClient
+import mlflow
 from prometheus_client import Counter, Histogram, Gauge
 import uvicorn
 
 # from mlops.model_registry import ModelRegistry
+from mlops.pradiction_table import PredictionTable
+from mlops.model_registry import ModelRegistry
 from mlops.schema import CustomerFeatures, PredictionResponse
+from dotenv import load_dotenv
+from mlflow.tracking import MlflowClient
 
+load_dotenv()
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,18 +33,32 @@ app = FastAPI(
     description="API for customer churn prediction",
     version="0.1.0"
 )
-
+def get_model(model_name: str):
+    client = MlflowClient(tracking_uri=os.environ["MLFLOW_TRACKING_URI"], registry_uri=os.environ["MLFLOW_S3_ENDPOINT_URL"])
+    latest_versions = client.get_latest_versions(name=model_name)
+    if not latest_versions:
+        raise ValueError(f"No model found with the name '{model_name}'")
+    latest_version = max(latest_versions, key=lambda v: int(v.version))
+    model_uri = f"models:/{model_name}/{latest_version}"
+    model = mlflow.pyfunc.load_model(model_uri)
+    metadata = {
+        "name": latest_version.name,
+        "version": latest_version.version,
+        "run_id": latest_version.run_id,
+        "stage": latest_version.current_stage,
+        "creation_time": latest_version.creation_timestamp,
+    }
+    return model, metadata
 # Global model registry
-# model_registry = ModelRegistry()
-current_model = None
-current_metadata = None
+current_model, current_metadata = None, None
+prediction_buffer: List[Dict] = []
 
 def load_model():
     global current_model, current_metadata
     try:
-        model_name = os.getenv("MODEL_NAME", "churn_model")
+        model_name = os.getenv("MODEL_NAME", "TelcoCutomerChurnModel")
         
-        # current_model, current_metadata = model_registry.get_model(name=model_name)
+        current_model, current_metadata = get_model(name=model_name)
         logger.info(f"Loaded model: {current_metadata.name} v{current_metadata.version}")
         return True
     except Exception as e:
@@ -74,7 +95,23 @@ async def predict_churn(customer: CustomerFeatures, background_tasks: Background
         # Create response
         # Record metrics
         # Log prediction (background task)
-        return {} # response
+        pt = PredictionTable()
+        pt.insert_prediction(
+            customer_id=customer.customer_id,
+            
+            monthly_charges=0,
+            tenure=0,
+            total_charges=0,
+            high_value_fiber=0,
+            churn=0,
+
+            churn_probability=0.4,
+            churn_prediction=0.1,
+            confidence=0.9,
+            model_version=current_metadata["version"],
+            prediction_timestamp=datetime.now()
+        )
+        return {}
         
     except Exception as e:
         logger.error(f"Prediction failed: {str(e)}")

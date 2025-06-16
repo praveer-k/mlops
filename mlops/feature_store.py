@@ -6,8 +6,7 @@ import pandas as pd
 from typing import Dict
 from datetime import datetime
 from feast import FeatureStore as FeastFeatureStore, FeatureView
-from scipy.stats import entropy
-
+from scipy.stats import ks_2samp
 
 class FeatureStore:
     def __init__(self, table_name: str, df: pd.DataFrame, target_col: str, feature_cols: list[str], entity_cols: list[str], db_path: str = f"local/offline_datastore.duckdb", fs_path: str = "feature_store.yaml"):
@@ -66,33 +65,26 @@ class FeatureStore:
         print(f"Data quality metrics: {quality_metrics}")
         return quality_metrics
     
-    def data_drift(self) -> Dict[str, float]:
+    def data_drift(self) -> Dict[str, Dict[str, float]]:
         """Test for Data Drift"""
-        X = self.df[self.feature_cols]
-        X_historical = self.get_historical_features()
-        if X_historical is None:
-            return {feature: 0 for feature in self.feature_cols}
-        bins = np.linspace(-5, 5, 50)
-        kl_divergences = dict()
-        for feature in self.feature_cols:
-            train_hist, _ = np.histogram(X[feature], bins=bins, density=False)
-            new_hist, _ = np.histogram(X_historical[feature], bins=bins, density=True)
-            if train_hist.sum() == 0:
-                kl_divergence = 0
-            else:
-                train_hist = train_hist / train_hist.sum()
-                epsilon = 1e-10
-                train_hist += epsilon
-                new_hist += epsilon
-                kl_divergence = entropy(train_hist, new_hist)
-            kl_divergences[feature] = kl_divergence
-            print(f"Data Drift (KL Divergence) for feature {feature}: {kl_divergence:.4f}")
-        return kl_divergences
+        X = self.get_historical_features()
+        X_curr = self.df[self.feature_cols]
+        if X is None:
+            return {feature: { "ks_stat":0, "p_value":0 } for feature in self.feature_cols}
+        cdrift = dict()
+        for i, feature in enumerate(self.feature_cols):
+            ks_stat, p_value = ks_2samp(X_curr[feature], X[feature])
+            cdrift[feature] = {
+                "ks_stat": ks_stat,
+                "p_value": p_value
+            }
+            print(f"Data Drift (KS Test) for feature {feature}: {ks_stat:.4f}, P-Value: {p_value:.4f} (Drift if p < 0.05)")
+        return cdrift
        
     @staticmethod
-    def is_data_quality_acceptable(quality_metrics, data_drift) -> bool:
+    def is_data_quality_acceptable(quality_metrics, data_drift: Dict[str, Dict[str, float]]) -> bool:
         """Is data quality acceptable"""
-        data_drift_is_acceptable = all(stats < 0.3 for _, stats in data_drift.items())
+        data_drift_is_acceptable = all(stats["p_value"] > 0.05 and stats["ks_stat"] < 0.1 for _, stats in data_drift.items())
         if (quality_metrics["missing_values"] / quality_metrics["sample_count"] <= 0.05 and
             quality_metrics['duplicate_rows'] / quality_metrics["sample_count"] <= 0.02 and
             data_drift_is_acceptable

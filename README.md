@@ -29,8 +29,8 @@ The Feature Store is designed to handle both offline and online features.
 
 Monitoring is divided into two parts:
 
-* **Modeling-time Monitoring**: Captures model metrics at training time for later visualization.
 * **Inference-time Monitoring**: Captured via API and Prometheus during real-time prediction.
+* **Log-Based Monitoring**: Captures prediction logs and compare it to actual live production data.
 
 Orchestration is designed to handle each pipeline component independently. While not fully implemented, this can be achieved using Python operators or containerized Docker jobs.
 The API is deployed using CI/CD, and model performance metrics are scraped using Prometheus.

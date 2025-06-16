@@ -59,3 +59,7 @@ class ModelStatus(BaseModel):
     total_predictions: int
     avg_latency_ms: float
     drift_scores: Dict[str, float]
+
+class PredictionTableResponse(CustomerFeatures, PredictionResponse):
+    """Combined model with features and prediction"""
+    pass
