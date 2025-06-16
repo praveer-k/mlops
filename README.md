@@ -1,99 +1,135 @@
 # MLOps (Churn Prediction)
 
-# How to run
+## How to Run
+
 ```bash
-  # brew install uv
-  uv sync
-  docker compose up -d
-  code .
-  # open ipynb
-  # change path of csv file to actual download
-  # select kernel ./.venv and run all
+# Install uv (if not already installed)
+brew install uv
+
+# Sync environment
+uv sync
+
+# Start services
+docker compose up -d
+
+# Open project in VS Code
+code .
+
+# Open the notebook (.ipynb)
+# Change the path of the CSV file to your actual download location
+# Select the kernel from ./.venv and run all cells
 ```
 
 ## Overview
 
-Crate a basic MLOps pipeline for customer churn prediction. 
+This project sets up a basic MLOps pipeline for customer churn prediction.
 
-I have chosen to implement **Model Registry** component and mocked other components including Feature Store, Monitoring, Orchestration, and Deployment systems. 
-Feature store is implemented to incorporate both offline features and online features.
-Monitoring is divided into 2 parts: Modeling time monitoring and Inference time monitoring. Inference time monitorig is done using api and prometheus while Modeling time monitoring is used to store as model metrics so that it can be visualised later.
-Orchestration handles each part separately. Although not implemented it can be acchvied using either python operator or dockerkerized contianer.
-API is deployed using CI/CD and tracking metrics are scraped using prometheus.
+I chose to implement the **Model Registry** component fully and mock other components including the Feature Store, Monitoring, Orchestration, and Deployment systems.
+The Feature Store is designed to handle both offline and online features.
+
+Monitoring is divided into two parts:
+
+* **Modeling-time Monitoring**: Captures model metrics at training time for later visualization.
+* **Inference-time Monitoring**: Captured via API and Prometheus during real-time prediction.
+
+Orchestration is designed to handle each pipeline component independently. While not fully implemented, this can be achieved using Python operators or containerized Docker jobs.
+The API is deployed using CI/CD, and model performance metrics are scraped using Prometheus.
+
+---
 
 ## Architecture
 
-Basic Flow
+### Basic Flow
+
 ```mermaid
-  flowchart LR;
-      A[Data Source]-->B[Feature Store];
-      B -->C[Access data and model quality];
-      C --> D[Push to Model Registry];
+flowchart LR;
+    A[Data Source] --> B[Feature Store];
+    B --> C[Access Data and Model Quality];
+    C --> D[Push to Model Registry];
 ```
 
-Once, the model is ready deploy it on a server and monitor its performance such as latency, inference volume, model version etc.
+Once the model is ready, deploy it to a server and monitor performance metrics such as latency, inference volume, and model version.
+
 ```mermaid
-  flowchart LR;
-      A[API] --> B["`Deploy
-  \- build docker image
-  \- test docker image
-  \- deploy to cluster`"];
-      B --> C[Monitor];
+flowchart LR;
+    A[API] --> B["Deploy
+  \- Build Docker image
+  \- Test Docker image
+  \- Deploy to cluster"];
+    B --> C[Monitor];
 ```
 
-Orchestrate the retraining on orchestration platform such as Airflow. Schedule, retrain and if criteria is met promote the model with updated version.
+Model retraining can be orchestrated on platforms like Airflow. Models are scheduled for retraining and, if criteria are met, promoted to an updated version.
+
 ```mermaid
-flowchart LR
-    A[Schedule] --> B[Retrain Model]
-    B --> C[Check Criteria and Promote Model]   
+flowchart LR;
+    A[Schedule] --> B[Retrain Model];
+    B --> C[Check Criteria and Promote Model];
 ```
+
+---
 
 ## Components Implemented
 
-### 1. Model Registry 
+### 1. Model Registry
 
-**Why Model Registry**: I chose to implement the Model Registry as the main component because it's foundational for machine learning. Quality accessment, version control, and promoting the model to registry are key aspects that need to be addressed using a model registry module. It is a critical piece of the infrastructure in a machine learning model's lifecycle.
+**Why Model Registry**:
+I chose to implement the Model Registry as the core component because it is foundational to machine learning operations. Model quality assessment, version control, and promotion workflows are all key processes handled by a registry.
 
 **Features Implemented**:
-- **Model Versioning**: model version is automatically incremented if quality is acceptable.
-- **Lifecycle Management**: Stage-based model promotion (Staging → Production)
-- **Metadata Tracking**: Comprehensive metadata including metrics, parameters, data lineage
-- **Model Comparison**: Side-by-side comparison of different model versions
-- **Audit Trail**: Complete history of model transitions and changes
-- **Artifact Storage**: Secure storage of model binaries and preprocessing pipelines
-- **Search & Discovery**: Query models by name, version, stage, or tags
+
+* **Model Versioning**: Automatically increments model version if quality thresholds are met.
+* **Lifecycle Management**: Stage-based model promotion (e.g., Staging → Production).
+* **Metadata Tracking**: Tracks metrics, parameters, and data lineage.
+* **Model Comparison**: Side-by-side comparison of model versions.
+* **Audit Trail**: Full history of model changes and stage transitions.
+* **Artifact Storage**: Stores model binaries and preprocessing artifacts securely.
+* **Search & Discovery**: Search by model name, version, stage, or tags.
 
 **Database Schema**:
-- `models`: Core model metadata and artifacts
-- `model_transitions`: Audit trail of stage changes
-- `model_experiments`: Links to MLflow experiments
+
+* `models`: Core metadata and artifacts.
+* `model_transitions`: History of stage changes.
+* `model_experiments`: Links to MLflow experiments.
+
+---
 
 ### 2. Feature Store
 
 **Key Features**:
-- Point-in-time correct feature retrieval
-- Online/offline feature stores for training and inference
-- Feature lineage and data quality monitoring
+
+* Point-in-time correct feature retrieval.
+* Online and offline feature storage for training and inference.
+* Feature lineage and data quality monitoring.
+
+---
 
 ### 3. Monitoring System
 
 **Monitoring Strategy**:
-- Data drift is done using the feature store
-- Model/Concept drift and Prediction drift are done using the feature store and model registry
-- Inference volume, latency etc. are collected using prometheus.
+
+* **Data Drift**: Detected using the Feature Store.
+* **Model/Concept Drift**: Detected via the Feature Store and Model Registry.
+* **Operational Metrics**: Latency, throughput, etc., are collected using Prometheus.
 
 **Monitoring Metrics**:
-- **Data Drift**: KL Divergence
-- **Prediction Drift**: Jensen-Shannon divergence
-- **Concept Drift**: KS test
-- **Operational Metrics**: Latency, throughput, error rates, resource utilization
+
+* **Data Drift**: KL Divergence
+* **Prediction Drift**: Jensen-Shannon Divergence
+* **Concept Drift**: KS Test
+* **Operational Metrics**: Latency, throughput, error rates, resource utilization
+
+---
 
 ### 4. Orchestration & Retraining
 
 **Retraining Triggers**:
-- **Scheduled**: Daily/weekly/monthly retraining cycles
-- **Performance-based**: When accuracy drops below threshold
-- **Drift-based**: When significant data/concept drift detected
+
+* **Scheduled**: Daily/weekly/monthly retraining
+* **Performance-Based**: Triggered when accuracy drops below a threshold
+* **Drift-Based**: Triggered upon detection of significant data/concept drift
+
+---
 
 ### 5. Deployment & CI/CD
 
@@ -107,18 +143,19 @@ services:
 
   minio:
     image: minio/minio:latest
-  
+
   redis:
     image: redis:alpine
-    
+
   prometheus:
     image: prom/prometheus
-    
+
   grafana:
     image: grafana/grafana
 ```
 
 **CI/CD Pipeline** (GitHub Actions):
+
 ```yaml
 name: Model Deployment Pipeline
 
@@ -132,27 +169,29 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Run tests
-      run: pytest
-  
+      - uses: actions/checkout@v2
+      - name: Run tests
+        run: pytest
+
   deploy-staging:
     needs: test
     runs-on: ubuntu-latest
     steps:
-    - name: Deploy to staging
-      run: |
-        docker build -t mlops:${{ github.sha }} .
-        docker push mlops:${{ github.sha }}
-        kubectl apply -f k8s/staging/
-  
+      - name: Deploy to staging
+        run: |
+          docker build -t mlops:${{ github.sha }} .
+          docker push mlops:${{ github.sha }}
+          kubectl apply -f k8s/staging/
+
   deploy-production:
     needs: deploy-staging
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-    - name: Deploy to production
-      run: |
-        kubectl apply -f k8s/production/
-        kubectl set image deployment/mlops mlops=mlops:${{ github.sha }}
+      - name: Deploy to production
+        run: |
+          kubectl apply -f k8s/production/
+          kubectl set image deployment/mlops mlops=mlops:${{ github.sha }}
 ```
+
+---
